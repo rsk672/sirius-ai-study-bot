@@ -34,20 +34,31 @@ class Database:
             #print(f"INSERT INTO database VALUES {data.toSql(NEWHASH)}")
             self.cur.execute(f"INSERT INTO database VALUES {data.toSql(NEWHASH)}")
             self.collection.upsert(ids=[NEWHASH], documents=[data.text])
-            print(NEWHASH)
+            #print(NEWHASH)
         self.sqldb.commit()
+
     def get(self, text:str, chat_id:int, count:int=10, label:str=None):
         query = self.cur.execute(f"SELECT id FROM database WHERE chat_id={chat_id} AND label='{label}'")
         result = query.fetchall()
         ids = []
         for i in result:
             ids.append(str(i[0]))
-        # ids = list(set(ids)) #remove later
         print(ids)
-
         return self.collection.query(ids=ids, query_texts=text)
     
+    def remove(self, message_id:int):
+        query = self.cur.execute(f"SELECT id FROM database WHERE message_id={message_id}")
+        result = query.fetchall()
+        ids = []
+        for i in result:
+            ids.append(str(i[0]))
+        print(ids)
+        self.cur.execute(f"DELETE FROM database WHERE message_id={message_id}")
+        self.sqldb.commit()
+        self.collection.delete(ids=ids)
 if __name__ == "__main__":
     database = Database()
-    #database.add([Data("hi", "ho", 123, 124)])
+    #database.add([Data("hey", "ho", 123, 128), Data("hah", "ho", 123, 126)])
+    #database.remove(127)
+    print(database.collection.query(query_texts=["hi"]))
     print(database.get("hi", 123))

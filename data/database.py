@@ -5,7 +5,7 @@ import time
 import hashlib
 
 class Data:
-    def __init__(self, text:str, path:str, chat_id:int, message_id:str, time:int=0, label:str="None"):
+    def __init__(self, text:str, path:str, chat_id:int, message_id:int, time:int=0, label:str="None"):
         self.path = path
         self.text = text
         self.chat_id = chat_id
@@ -13,7 +13,7 @@ class Data:
         self.label = label
         self.message_id = message_id
     def toSql(self, hash):
-        return f"('{hash}', '{self.path}', {self.chat_id}, '{self.message_id}', {self.time}, '{self.label}')"
+        return f"('{hash}', '{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
 
 def hash(data:Data):
     HASH = "iag!@#1239s0df0sde??|9kudfrlkhgovb040259jf@#!#!esksekies"
@@ -27,7 +27,7 @@ class Database:
         self.client = chromadb.PersistentClient()
         self.collection = self.client.get_or_create_collection(name="inner_db")
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
-        " (id text, path text, chat_id int, message_id text, time int, label text)")
+        " (id text, path text, chat_id int, message_id int, time int, label text)")
     def add(self, datas:list[Data])->None:
         for data in datas:
             NEWHASH = hash(data)
@@ -46,3 +46,8 @@ class Database:
         print(ids)
 
         return self.collection.query(ids=ids, query_texts=text)
+    
+if __name__ == "__main__":
+    database = Database()
+    #database.add([Data("hi", "ho", 123, 124)])
+    print(database.get("hi", 123))

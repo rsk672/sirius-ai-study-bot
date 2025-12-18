@@ -46,8 +46,3 @@ class Database:
         print(ids)
 
         return self.collection.query(ids=ids, query_texts=text)
-
-database = Database()
-#database.add([Data("i come in peace", "", 123, 124), Data("i will kill you", "", 123, 125)])
-print(database.get("я никого не трону", 123))
-

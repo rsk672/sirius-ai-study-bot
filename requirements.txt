@@ -2,3 +2,7 @@ aiogram>=3.23.0
 asyncio>=4.0.0
 numpy>=2.3.5
 python-dotenv>=1.2.1
+fastapi>=0.125.0
+pydantic>=2.12.5
+sentence_transformers>=5.2.0
+uvicorn>=0.38.0

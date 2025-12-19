@@ -1,9 +1,19 @@
 import chromadb
+import numpy as np
+import httpx
+import asyncio
+from chromadb import Documents, EmbeddingFunction, Embeddings
 import sqlite3
 import time
 import hashlib
 
 DEBUG = False
+
+class CustomEmbedder(chromadb.EmbeddingFunction):
+    def __call__(self, input: Documents) -> Embeddings:
+        embeddings = [[0.0]]
+        return embeddings
+
 
 class Data:
     def __init__(self, text:str, path:str, chat_id:int, message_id:int, time:int=0, label:str="None"):
@@ -16,10 +26,10 @@ class Data:
     def toSql(self, hash):
         return f"('{hash}', '{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
     def tostr(self):
-        return self.toSql("hash")
+        return f"'{self.text}', {self.toSql("hash")[1:]}"
     
 
-def hash(data:Data):
+def hash(data:Data)->str:
     HASH = "iag!@#1239s0df0sde??|9kudfrlkhgovb040259jf@#!#!esksekies"
     hashstr = data.text+str(data.chat_id)+str(data.message_id)+data.path+str(data.time)+str(time.time_ns())+HASH
     return hashlib.sha256(bytes(hashstr, encoding='utf-8')).hexdigest()
@@ -29,7 +39,7 @@ class Database:
         self.sqldb = sqlite3.connect("sql.db")
         self.cur = self.sqldb.cursor()
         self.client = chromadb.PersistentClient()
-        self.collection = self.client.get_or_create_collection(name="inner_db")
+        self.collection = self.client.get_or_create_collection(name="inner_db", embedding_function=CustomEmbedder())
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
         " (id text, path text, chat_id int, message_id int, time int, label text)")
     def add(self, datas:list[Data])->None:
@@ -50,7 +60,7 @@ class Database:
             ids.append(str(i[0]))
         if(DEBUG):print(ids)
         if(len(ids)==0):
-            return
+            return []
         chromaquery = self.collection.query(ids=ids, query_texts=text)
         dataoutput = []
         for i in range(len(chromaquery["ids"][0])):
@@ -77,10 +87,14 @@ class Database:
         self.sqldb.commit()
         self.collection.delete(ids=ids)
 if __name__ == "__main__":
-    
+    # test = CustomEmbedder()
+    # out = test.__call__(["hi"])
+    # print(out)
+
+
     database = Database()
     #database.add([Data("hey", "ho", 123, 128), Data("hah", "ho", 123, 126)])
-    database.remove(126, 123)
+    #database.remove(126, 123)
     print(database.collection.query(query_texts=["hi"]))
     for i in database.get("hi", 123):
         print(i.tostr())

@@ -61,7 +61,7 @@ class Database:
         if(DEBUG):print(ids)
         if(len(ids)==0):
             return []
-        chromaquery = self.collection.query(ids=ids, query_texts=text)
+        chromaquery = self.collection.query(ids=ids, query_texts=text, n_results=count)
         dataoutput = []
         for i in range(len(chromaquery["ids"][0])):
             if(DEBUG):print(f"SELECT * FROM database WHERE id='{chromaquery["ids"][0][i]}'")

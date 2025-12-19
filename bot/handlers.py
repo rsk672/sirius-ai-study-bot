@@ -103,6 +103,10 @@ async def handle_upload_button(message: Message):
         else:
             file_name = f'{words[0].lower()}_{words[1].lower()}_{int(time.time())}.txt'
         destination = os.path.join(files_dir, str(message.chat.id), file_name)
+        try:
+            os.mkdir(os.path.join(files_dir, str(message.chat.id)))
+        except:
+            pass
         with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             f.write(text)
         await message.reply(strings["success"])

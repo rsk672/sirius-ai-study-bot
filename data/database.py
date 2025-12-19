@@ -1,8 +1,9 @@
 import chromadb
 import sqlite3
-from chromadb import CollectionMetadata
 import time
 import hashlib
+
+DEBUG = False
 
 class Data:
     def __init__(self, text:str, path:str, chat_id:int, message_id:int, time:int=0, label:str="None"):
@@ -14,6 +15,9 @@ class Data:
         self.message_id = message_id
     def toSql(self, hash):
         return f"('{hash}', '{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
+    def tostr(self):
+        return self.toSql("hash")
+    
 
 def hash(data:Data):
     HASH = "iag!@#1239s0df0sde??|9kudfrlkhgovb040259jf@#!#!esksekies"
@@ -31,34 +35,52 @@ class Database:
     def add(self, datas:list[Data])->None:
         for data in datas:
             NEWHASH = hash(data)
-            #print(f"INSERT INTO database VALUES {data.toSql(NEWHASH)}")
+            if(DEBUG):print(f"INSERT INTO database VALUES {data.toSql(NEWHASH)}")
             self.cur.execute(f"INSERT INTO database VALUES {data.toSql(NEWHASH)}")
             self.collection.upsert(ids=[NEWHASH], documents=[data.text])
-            #print(NEWHASH)
+            if(DEBUG):print(NEWHASH)
         self.sqldb.commit()
 
-    def get(self, text:str, chat_id:int, count:int=10, label:str=None):
+    def get(self, text:str, chat_id:int, count:int=10, label:str=None) -> list[Data]:
+        print(f"SELECT id FROM database WHERE chat_id={chat_id} AND label='{label}'")
         query = self.cur.execute(f"SELECT id FROM database WHERE chat_id={chat_id} AND label='{label}'")
         result = query.fetchall()
         ids = []
         for i in result:
             ids.append(str(i[0]))
-        print(ids)
-        return self.collection.query(ids=ids, query_texts=text)
+        if(DEBUG):print(ids)
+        if(len(ids)==0):
+            return
+        chromaquery = self.collection.query(ids=ids, query_texts=text)
+        dataoutput = []
+        for i in range(len(chromaquery["ids"][0])):
+            if(DEBUG):print(f"SELECT * FROM database WHERE id='{chromaquery["ids"][0][i]}'")
+            sqlquery = self.cur.execute(f"SELECT * FROM database WHERE id='{chromaquery["ids"][0][i]}'")
+            sqlresult = sqlquery.fetchall()
+            dataoutput.append(Data(chromaquery["documents"][0][i],
+                                   sqlresult[0][1], sqlresult[0][2],
+                                     sqlresult[0][3], sqlresult[0][4],
+                                       sqlresult[0][5]))
+        return dataoutput
     
-    def remove(self, message_id:int):
-        query = self.cur.execute(f"SELECT id FROM database WHERE message_id={message_id}")
+    def remove(self, message_id:int, chat_id:int):
+        if(DEBUG): print(f"SELECT id FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
+        query = self.cur.execute(f"SELECT id FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
         result = query.fetchall()
         ids = []
         for i in result:
             ids.append(str(i[0]))
-        print(ids)
+        if(DEBUG):print(ids)
+        if(len(ids)==0):
+            return
         self.cur.execute(f"DELETE FROM database WHERE message_id={message_id}")
         self.sqldb.commit()
         self.collection.delete(ids=ids)
 if __name__ == "__main__":
+    
     database = Database()
     #database.add([Data("hey", "ho", 123, 128), Data("hah", "ho", 123, 126)])
-    #database.remove(127)
+    database.remove(126, 123)
     print(database.collection.query(query_texts=["hi"]))
-    print(database.get("hi", 123))
+    for i in database.get("hi", 123):
+        print(i.tostr())

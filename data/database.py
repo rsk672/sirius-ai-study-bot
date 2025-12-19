@@ -39,7 +39,7 @@ class Database:
         self.sqldb = sqlite3.connect("sql.db")
         self.cur = self.sqldb.cursor()
         self.client = chromadb.PersistentClient()
-        self.collection = self.client.get_or_create_collection(name="inner_db", embedding_function=CustomEmbedder())
+        self.collection = self.client.get_or_create_collection(name="inner_db")
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
         " (id text, path text, chat_id int, message_id int, time int, label text)")
     def add(self, datas:list[Data])->None:

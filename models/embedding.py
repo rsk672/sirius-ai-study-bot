@@ -2,10 +2,11 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import logging
+import sys
 from typing import List
 from utils.config import MODEL, DEVICE
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
 
 logger.info(f"Загрузка модели {MODEL}...")

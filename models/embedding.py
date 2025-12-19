@@ -5,9 +5,7 @@ import numpy as np
 import uvicorn
 import logging
 from typing import List
-
-MODEL = "cointegrated/rubert-tiny2"
-DEVICE = "cpu"
+from config import MODEL, DEVICE
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

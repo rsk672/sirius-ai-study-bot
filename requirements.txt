@@ -8,5 +8,8 @@ fastapi>=0.125.0
 pydantic>=2.12.5
 sentence_transformers>=5.2.0
 uvicorn>=0.38.0
+<<<<<<< HEAD
 aiohttp>=3.13.2
 langchain-core>=1.2.3
+=======
+>>>>>>> f99b8af51adc2c7b8726356d5534a8b67445e992

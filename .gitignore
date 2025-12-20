@@ -1,8 +1,49 @@
-.venv/
-.env/
+# Байт-код Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Виртуальные окружения
 venv/
 env/
-.env
+ENV/
+.venv/
+.env/
+.ENV/
 *.env
+
+# Базы данных
 chroma
 sql.db
+
+# Локальные конфигурации и секреты
+.env
+.env.local
+.envrc
+
+# Логи и базы данных
+*.log
+*.sqlite3
+*.db
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# ОС
+Thumbs.db
+ehthumbs.db
+
+# Пакеты и зависимости
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+.mypy_cache/
+.pyre/

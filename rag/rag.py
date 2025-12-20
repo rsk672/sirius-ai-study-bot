@@ -13,6 +13,7 @@ class ResponseFormat:
     """Response schema for the agent."""
     response:str
     paths:list[str]
+    ratings:list[float]
 class RAG:
     def __init__(self):
         load_dotenv()
@@ -30,11 +31,14 @@ class RAG:
             "the user has submited some conspects on various topic. Provide information on the topics that the user has asked," \
             "you will be provided with the path to the most relevant ones as well as their contents." \
             "In your response always rely on the conspects for information." \
-            "After your response write the paths to the conspects you used." \
+            "After your response write the paths to the conspects you used for answering the user's question." \
             "Don't repeat the same path twice, if the information in the file wasn't used, don't print out its path." \
+            "Only write a path if you think the user would need to see that file to understand the explanation." \
             "You can make derivations based on the conspects and also to use your own knowledge," \
-            " but always specify when you are doing so." \
-            "If no conspects were referenced then in the paths write 'None'",
+            " but ALWAYS and i do mean ALWAYS specify when you are doing so." \
+            "If no conspects were referenced then in the paths write 'None'." \
+            "After your response write a float from 0 to 1 that is related to how much each conspect was used," \
+            " each number should corespond to the path written previously.",
             response_format=ToolStrategy(ResponseFormat)
         )
         self.database = db.Database()

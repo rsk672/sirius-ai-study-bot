@@ -27,7 +27,7 @@ class Data:
     def toSql(self):
         return f"('{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
     def toStr(self):
-        return f"'{self.text}', {self.toSql("hash")[1:]}"    
+        return f"('{self.text}', {self.toSql()[1:]}"    
 
 def ListStrtoListData(strings:list[str], path:str, chat_id:int,
                        message_id:int, time:int=0, label:str="None")->list[Data]:
@@ -46,7 +46,7 @@ class Database:
         self.sqldb = sqlite3.connect("sql.db")
         self.cur = self.sqldb.cursor()
         self.client = chromadb.PersistentClient()
-        self.collection = self.client.get_or_create_collection(name="inner_db")
+        self.collection = self.client.get_or_create_collection(name="inner_db", embedding_function=CustomEmbedder())
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
         " (path text, chat_id int, message_id int, time int, label text)")
     def add(self, datas:list[Data])->None:

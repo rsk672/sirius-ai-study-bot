@@ -12,6 +12,10 @@ ENV/
 .ENV/
 *.env
 
+# Базы данных
+chroma
+sql.db
+
 # Локальные конфигурации и секреты
 .env
 .env.local

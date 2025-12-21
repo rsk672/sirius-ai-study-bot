@@ -1,0 +1,10 @@
+from data.database import *
+db = Database()
+db.add(ListStrtoListData(["hi", "ho"], "path", 0, 1, "Aboba"))
+db.add(ListStrtoListData(["hey", "ho"], "path2", 0, 2, "amogus"))
+print(db.get("hi", 0))
+print(db.path_to_name(0, "path"))
+db.remove(1, 0)
+print(db.get("hi", 0))
+db.remove(2, 0)
+print(db.get("hi", 0))

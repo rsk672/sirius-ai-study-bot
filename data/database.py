@@ -17,23 +17,24 @@ class CustomEmbedder(chromadb.EmbeddingFunction):
         return embeddings
 
 class Data:
-    def __init__(self, text:str, path:str, chat_id:int, message_id:int, time:int=0, label:str="None"):
+    def __init__(self, text:str, path:str, chat_id:int, message_id:int, file_name:str=str(time.time_ns()), time:int=0, label:str="None"):
         self.path = path
         self.text = text
         self.chat_id = chat_id
         self.time = time
         self.label = label
         self.message_id = message_id
+        self.file_name = file_name
     def toSql(self):
-        return f"('{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
+        return f"('{self.path}', {self.chat_id}, {self.message_id}, '{self.file_name}', {self.time}, '{self.label}')"
     def toStr(self):
         return f"('{self.text}', {self.toSql()[1:]}"    
 
 def ListStrtoListData(strings:list[str], path:str, chat_id:int,
-                       message_id:int, time:int=0, label:str="None")->list[Data]:
+                       message_id:int, file_name:str=str(time.time_ns()), time:int=0, label:str="None")->list[Data]:
     datas = []
     for string in strings:
-        datas.append(Data(string, path, chat_id, message_id, time, label))
+        datas.append(Data(string, path, chat_id, message_id, file_name, time, label))
     return datas
 
 def hash(data:Data)->str:
@@ -48,7 +49,7 @@ class Database:
         self.client = chromadb.PersistentClient()
         self.collection = self.client.get_or_create_collection(name="inner_db", embedding_function=CustomEmbedder())
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
-        " (path text, chat_id int, message_id int, time int, label text)")
+        " (path text, chat_id int, message_id int, file_name text, time int, label text)")
     def add(self, datas:list[Data])->None:
         if(DEBUG):print(f"INSERT INTO database VALUES {datas[0].toSql()}")
         self.cur.execute(f"INSERT INTO database VALUES {datas[0].toSql()}")
@@ -93,3 +94,7 @@ class Database:
         self.cur.execute(f"DELETE FROM database WHERE message_id={message_id}")
         self.sqldb.commit()
         self.collection.delete(where={"path":{"$in":paths}})
+    
+    def path_to_name(self, chat_id:int, path:str):
+        query = self.cur.execute(f"SELECT file_name from database WHERE chat_id={chat_id} AND path='{path}'")
+        return query.fetchone()[0]

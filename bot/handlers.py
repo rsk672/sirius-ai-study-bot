@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 import os
-
+import PyPDF2
 from aiogram import Bot, Dispatcher, html
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -98,7 +98,30 @@ async def handle_upload_button(message: Message):
         strings['main'],
         reply_markup=get_empty_keyboard()
     )
-    
+
+def find_file_location(chat_id:int, type:str)->list[str]:
+    file_name = f'{int(time.time_ns())}.{type}'
+    destination = os.path.join(files_dir, str(chat_id), file_name)
+    try:
+        os.mkdir(os.path.join(files_dir, str(chat_id)))
+    except:
+        pass
+    ##for cause if dumb user sends two same files in the same second
+    if os.path.exists(destination):
+        for i in range(1, 1025):
+            dest = destination[:-4]+ f' ({i})' + destination[-4:]
+            if not os.path.exists(dest):
+                destination = dest
+                break
+    return [destination, file_name]
+def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, message_id:int, type:str):
+    destination, file_name = find_file_location(chat_id, type)
+    db.add(ListStrtoListData(texts, file_name, chat_id, message_id, outer_file_name))
+    return destination
+
+def splitter(text:str)->list[str]:
+    return text.split("\n\n")
+
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):
     if not message.document:
@@ -112,23 +135,9 @@ async def handle_upload_button(message: Message):
             file_name = f'{words[0].lower()}_{int(time.time())}.txt'
         else:
             file_name = f'{words[0].lower()}_{words[1].lower()}_{int(time.time())}.txt'
-        destination = os.path.join(files_dir, str(message.chat.id), file_name)
-        try:
-            os.mkdir(os.path.join(files_dir, str(message.chat.id)))
-        except:
-            pass
-        ##for cause if dumb user sends two same files in the same second
-        if os.path.exists(destination):
-            for i in range(1, 1025):
-                dest = destination[:-4]+ f' ({i})' + destination[-4:]
-                if not os.path.exists(dest):
-                    destination = dest
-                    break
-        #upfor this
+        destination = upload_to_database(splitter(text), file_name, message.chat.id, message.message_id, "txt")
         with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             f.write(text)
-        print(destination)
-        db.add(ListStrtoListData(message.text.split("\n\n"), destination, message.chat.id, message.message_id))
         await message.reply(strings["success"])
         return
     try:
@@ -137,15 +146,16 @@ async def handle_upload_button(message: Message):
         file_info = await bot.get_file(file_id)
         file_path = file_info.file_path
         file_name = pdf.file_name
-        destination = os.path.join(files_dir, str(message.chat.id), file_name)
-        if os.path.exists(destination):
-            for i in range(1, 1025):
-                dest = destination[:-4]+ f' ({i})' + destination[-4:]
-                if not os.path.exists(dest):
-                    destination = dest
-                    break
+        destination, inner_file_name = find_file_location(message.chat.id, "pdf")
         await bot.download_file(file_path, destination)
-        
+        with open(destination, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            all_text = []
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                all_text.append(text)     
+            full_text = '\n'.join(all_text)
+        db.add(ListStrtoListData(splitter(full_text), inner_file_name, message.chat.id, message.message_id, file_name))
         await message.reply(strings['success'])
         user_states[message.from_user.id] = 'awaiting_pdf'
         
@@ -159,7 +169,13 @@ async def handle_query_botton(message : Message):
     for path in ans.paths:
         print(f"path={path}")
         if path != 'None':
-            await message.answer_document(document=FSInputFile(path))
+            print(FSInputFile(os.path.join(files_dir, str(message.chat.id), path)))
+            try:
+                await message.answer_document(document=FSInputFile(
+                    os.path.join(files_dir, str(message.chat.id), path),
+                      db.path_to_name(message.chat.id, path)))
+            except Exception as e:
+                await message.reply(f"Error: {e}")
     await message.answer(ans.response)
 
 

@@ -11,73 +11,44 @@ DEBUG = False
 class RemoteEmbeddingFunction(chromadb.EmbeddingFunction):
     def __init__(self):
         self.embedder = RemoteEmbeddingService()
-        try:
-            test_emb = self.embedder.embed_query("test")
-            self.dimension = len(test_emb)
-            print(f"Определена размерность эмбеддингов: {self.dimension}")
-        except Exception as e:
-            print(f"Ошибка определения размерности: {str(e)}. Используем fallback 312.")
-            self.dimension = 312
-
+        # Убираем тестовый запрос при инициализации!
+        # Вместо этого получаем размерность из конфига
+        from utils.config import MODEL_DIMENSIONS, MODEL
+        self.dimension = MODEL_DIMENSIONS.get(MODEL, 312)  # Безопасное получение размерности
+    
     def __call__(self, input: Documents) -> Embeddings:
         try:
             return self.embedder.embed_documents(input)
         except Exception as e:
             print(f"Ошибка генерации эмбеддингов: {str(e)}")
+            # Используем размерность из конфига
             return [[0.0] * self.dimension for _ in range(len(input))]
 
-
 class Data:
-    def __init__(
-        self,
-        text: str,
-        path: str,
-        chat_id: int,
-        message_id: int,
-        time: int = 0,
-        label: str = "None",
-    ):
+    def __init__(self, text:str, path:str, chat_id:int, message_id:int, file_name:str=str(time.time_ns()), time:int=0, label:str="None"):
         self.path = path
         self.text = text
         self.chat_id = chat_id
         self.time = time
         self.label = label
         self.message_id = message_id
-
+        self.file_name = file_name
     def toSql(self):
-        return f"('{self.path}', {self.chat_id}, {self.message_id}, {self.time}, '{self.label}')"
-
+        return f"('{self.path}', {self.chat_id}, {self.message_id}, '{self.file_name}', {self.time}, '{self.label}')"
     def toStr(self):
-        return f"('{self.text}', {self.toSql()[1:]}"
+        return f"('{self.text}', {self.toSql()[1:]}"    
 
-
-def ListStrtoListData(
-    strings: list[str],
-    path: str,
-    chat_id: int,
-    message_id: int,
-    time: int = 0,
-    label: str = "None",
-) -> list[Data]:
+def ListStrtoListData(strings:list[str], path:str, chat_id:int,
+                       message_id:int, file_name:str=str(time.time_ns()), time:int=0, label:str="None")->list[Data]:
     datas = []
     for string in strings:
-        datas.append(Data(string, path, chat_id, message_id, time, label))
+        datas.append(Data(string, path, chat_id, message_id, file_name, time, label))
     return datas
 
-
-def hash(data: Data) -> str:
+def hash(data:Data)->str:
     HASH = "iag!@#1239s0df0sde??|9kudfrlkhgovb040259jf@#!#!esksekies"
-    hashstr = (
-        data.text
-        + str(data.chat_id)
-        + str(data.message_id)
-        + data.path
-        + str(data.time)
-        + str(time.time_ns())
-        + HASH
-    )
-    return hashlib.sha256(bytes(hashstr, encoding="utf-8")).hexdigest()
-
+    hashstr = data.text+str(data.chat_id)+str(data.message_id)+data.path+str(data.time)+str(time.time_ns())+HASH
+    return hashlib.sha256(bytes(hashstr, encoding='utf-8')).hexdigest()
 
 class Database:
     def __init__(self):
@@ -87,83 +58,53 @@ class Database:
         self.collection = self.client.get_or_create_collection(
             name="inner_db", embedding_function=RemoteEmbeddingFunction()
         )
-        self.sqldb.execute(
-            "CREATE TABLE IF NOT EXISTS database"
-            " (path text, chat_id int, message_id int, time int, label text)"
-        )
-
-    def add(self, datas: list[Data]) -> None:
-        if DEBUG:
-            print(f"INSERT INTO database VALUES {datas[0].toSql()}")
+        self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
+        " (path text, chat_id int, message_id int, file_name text, time int, label text)")
+    def add(self, datas:list[Data])->None:
+        if(DEBUG):print(f"INSERT INTO database VALUES {datas[0].toSql()}")
         self.cur.execute(f"INSERT INTO database VALUES {datas[0].toSql()}")
         for data in datas:
             NEWHASH = hash(data)
-            self.collection.upsert(
-                ids=[NEWHASH], documents=[data.text], metadatas=[{"path": data.path}]
-            )
-            if DEBUG:
-                print(NEWHASH)
+            self.collection.upsert(ids=[NEWHASH], documents=[data.text], metadatas=[{'path':data.path}])
+            if(DEBUG):print(NEWHASH)
         self.sqldb.commit()
 
-    def get(
-        self, text: str, chat_id: int, count: int = 10, label: str = None
-    ) -> list[Data]:
-        if DEBUG:
-            print(
-                f"SELECT id FROM database WHERE chat_id={chat_id} AND label='{label}'"
-            )
-        query = self.cur.execute(
-            f"SELECT path FROM database WHERE chat_id={chat_id} AND label='{label}'"
-        )
+    def get(self, text:str, chat_id:int, count:int=10, label:str=None) -> list[Data]:
+        if(DEBUG):print(f"SELECT id FROM database WHERE chat_id={chat_id} AND label='{label}'")
+        query = self.cur.execute(f"SELECT path FROM database WHERE chat_id={chat_id} AND label='{label}'")
         result = query.fetchall()
         paths = []
         for i in result:
             paths.append(str(i[0]))
-        if DEBUG:
-            print(paths)
-        if len(paths) == 0:
+        if(DEBUG):print(paths)
+        if(len(paths)==0):
             return []
-        chromaquery = self.collection.query(
-            query_texts=text, n_results=count, where={"path": {"$in": paths}}
-        )
+        chromaquery = self.collection.query(query_texts=text, n_results=count, where={"path":{"$in":paths}})
         dataoutput = []
         for i in range(len(chromaquery["metadatas"][0])):
-            if DEBUG:
-                print(
-                    f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'"
-                )
-            sqlquery = self.cur.execute(
-                f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'"
-            )
+            if(DEBUG):print(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'")
+            sqlquery = self.cur.execute(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'")
             sqlresult = sqlquery.fetchall()
-            dataoutput.append(
-                Data(
-                    chromaquery["documents"][0][i],
-                    sqlresult[0][0],
-                    sqlresult[0][1],
-                    sqlresult[0][2],
-                    sqlresult[0][3],
-                    sqlresult[0][4],
-                )
-            )
+            dataoutput.append(Data(chromaquery["documents"][0][i],
+                                   sqlresult[0][0], sqlresult[0][1],
+                                     sqlresult[0][2], sqlresult[0][3],
+                                       sqlresult[0][4]))
         return dataoutput
-
-    def remove(self, message_id: int, chat_id: int):
-        if DEBUG:
-            print(
-                f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}"
-            )
-        query = self.cur.execute(
-            f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}"
-        )
+    
+    def remove(self, message_id:int, chat_id:int):
+        if(DEBUG): print(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
+        query = self.cur.execute(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
         result = query.fetchall()
         paths = []
         for i in result:
             paths.append(str(i[0]))
-        if DEBUG:
-            print(paths)
-        if len(paths) == 0:
+        if(DEBUG):print(paths)
+        if(len(paths)==0):
             return
         self.cur.execute(f"DELETE FROM database WHERE message_id={message_id}")
         self.sqldb.commit()
-        self.collection.delete(where={"path": {"$in": paths}})
+        self.collection.delete(where={"path":{"$in":paths}})
+    
+    def path_to_name(self, chat_id:int, path:str):
+        query = self.cur.execute(f"SELECT file_name from database WHERE chat_id={chat_id} AND path='{path}'")
+        return query.fetchone()[0]

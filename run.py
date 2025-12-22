@@ -3,8 +3,6 @@ import logging
 import sys
 from dotenv import load_dotenv
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
 
 from models.main import start_embedding_server, stop_embedding_server
 from bot.handlers import bot, dp
@@ -13,6 +11,8 @@ from bot.handlers import bot, dp
 async def main() -> None:
     embedding_task = asyncio.create_task(start_embedding_server())
 
+    await asyncio.sleep(3)
+    
     try:
         await dp.start_polling(bot)
     finally:

@@ -37,7 +37,7 @@ strings = {'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'С
            'awaiting_query' : 'Пожалуйста, введите запрос',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
            'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет((',
-           'pleasewait' : 'Подождите, идёт обработка...'}
+           'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Error: out of tokens'}
 
 #Главная клавиатура - Загрузить и Спросить
 def get_main_keyboard():
@@ -164,24 +164,31 @@ async def handle_upload_button(message: Message):
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_query')
 async def handle_query_botton(message : Message):
-    pleasewait = await message.answer(strings['pleasewait'])
-    ans = await rag.query(message.text, message.chat.id)
-    response = []
-    for path in ans.paths:
-        print(f"path={path}")
-        if path != 'None':
-            print(FSInputFile(os.path.join(files_dir, str(message.chat.id), path)))
-            try:
-                await message.answer_document(document=FSInputFile(
-                    os.path.join(files_dir, str(message.chat.id), path),
-                      db.path_to_name(message.chat.id, path)))
-            except Exception as e:
-                await message.reply(f"Error: {e}")
-    await pleasewait.delete()
-    await message.reply(
-        ans.response,
-        reply_markup=get_main_keyboard()
-    )
+    try:
+        pleasewait = await message.answer(strings['pleasewait'])
+        ans = await rag.query(message.text, message.chat.id)
+        response = []
+        for path in ans.paths:
+            print(f"path={path}")
+            if path != 'None':
+                print(FSInputFile(os.path.join(files_dir, str(message.chat.id), path)))
+                try:
+                    await message.answer_document(document=FSInputFile(
+                        os.path.join(files_dir, str(message.chat.id), path),
+                        db.path_to_name(message.chat.id, path)))
+                except Exception as e:
+                    await message.reply(f"Error: {e}")
+        await pleasewait.delete()
+        await message.reply(
+            ans.response,
+            reply_markup=get_main_keyboard()
+        )
+    except:
+        await pleasewait.delete()
+        await message.reply(
+            strings['outoftokens'],
+            reply_markup=get_main_keyboard()
+        )
 
 
 @dp.message()

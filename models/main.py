@@ -4,11 +4,12 @@ from utils.config import EMBEDDING_API_URL
 
 _server = None
 
+
 async def start_embedding_server() -> None:
     """Запускает сервер эмбеддингов в асинхронном режиме."""
     global _server
-    
-    match = re.search(r':(\d+)', EMBEDDING_API_URL)
+
+    match = re.search(r":(\d+)", EMBEDDING_API_URL)
     port = int(match.group(1)) if match else 8000
 
     config = Config(
@@ -17,10 +18,11 @@ async def start_embedding_server() -> None:
         port=port,
         reload=False,
         workers=1,
-        loop="asyncio"
+        loop="asyncio",
     )
     _server = Server(config)
     await _server.serve()
+
 
 async def stop_embedding_server() -> None:
     """Корректно останавливает сервер эмбеддингов."""

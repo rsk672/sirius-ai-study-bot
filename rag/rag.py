@@ -22,6 +22,7 @@ class RAG:
             openai_api_base="https://openrouter.ai/api/v1",  # OpenRouter endpoint
             temperature=0.3,
             max_tokens=512,
+            api_key=API_KEY
         )
         self.agent = create_agent(
             model=self.model,

@@ -3,6 +3,7 @@ from typing import List
 from langchain_core.embeddings import Embeddings
 from utils.config import EMBEDDING_API_URL
 
+
 class RemoteEmbeddingService(Embeddings):
     def __init__(self):
         super().__init__()
@@ -11,9 +12,7 @@ class RemoteEmbeddingService(Embeddings):
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.post(
-                    EMBEDDING_API_URL,
-                    json={"texts": texts},
-                    timeout=10
+                    EMBEDDING_API_URL, json={"texts": texts}, timeout=10
                 ) as response:
                     if not response.ok:
                         error_text = await response.text()
@@ -32,10 +31,12 @@ class RemoteEmbeddingService(Embeddings):
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         import asyncio
+
         try:
             loop = asyncio.get_running_loop()
             if loop.is_running():
                 from concurrent.futures import ThreadPoolExecutor
+
                 with ThreadPoolExecutor() as pool:
                     return pool.submit(
                         lambda: asyncio.run(self.aembed_documents(texts))

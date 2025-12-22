@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 import os
-
+import PyPDF2
 from aiogram import Bot, Dispatcher, html
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -18,6 +18,14 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 import time
 
+from data.database import *
+from rag.rag import *
+
+db = Database()
+rag = RAG()
+
+#databasa.py
+
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -26,7 +34,8 @@ dp = Dispatcher()
 files_dir = 'data\\files'
 
 strings = {'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
-         'hi' : 'Я суперпупермегаумный бот.', 'request_pdf' : 'Отправьте PDF-файл или введите текст',
+           'hi' : 'Я суперпупермегаумный бот.', 'awaiting_pdf' : 'Отправьте PDF-файл или введите текст',
+           'awaiting_query' : 'Пожалуйста, введите запрос',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
            'pleasereset' : 'Пожалуйста, нажмите кнопку "Главная" внизу.', 'tba' : 'Такой функции у нас пока нет(('}
 
@@ -71,28 +80,52 @@ async def cmd_start(message: Message):
 async def handle_upload_button(message: Message):
     user_states[message.from_user.id] = 'awaiting_pdf'
     await message.answer(
-        strings['request_pdf'],
+        strings['awaiting_pdf'],
         reply_markup=get_empty_keyboard()
     )
     
 
-@dp.message(lambda message: message.text == strings["ask"])
+@dp.message(lambda message: message.text == strings["ask"]) ### Ответ на вопрос
 async def handle_upload_button(message: Message):
-    await message.answer(strings['tba'])
+    user_states[message.from_user.id] = 'awaiting_query'
+    await message.answer(strings['awaiting_query'])
     
 
-@dp.message(lambda message: message.text == strings["back"])
+@dp.message(lambda message: message.text == strings["back"]) ### Домой
 async def handle_upload_button(message: Message):
     user_states[message.from_user.id] = 'main'
     await message.answer(
         strings['main'],
-        reply_markup=get_main_keyboard()
+        reply_markup=get_empty_keyboard()
     )
-    
+
+def find_file_location(chat_id:int, type:str)->list[str]:
+    file_name = f'{int(time.time_ns())}.{type}'
+    destination = os.path.join(files_dir, str(chat_id), file_name)
+    try:
+        os.mkdir(os.path.join(files_dir, str(chat_id)))
+    except:
+        pass
+    ##for cause if dumb user sends two same files in the same second
+    if os.path.exists(destination):
+        for i in range(1, 1025):
+            dest = destination[:-4]+ f' ({i})' + destination[-4:]
+            if not os.path.exists(dest):
+                destination = dest
+                break
+    return [destination, file_name]
+def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, message_id:int, type:str):
+    destination, file_name = find_file_location(chat_id, type)
+    db.add(ListStrtoListData(texts, file_name, chat_id, message_id, outer_file_name))
+    return destination
+
+def splitter(text:str)->list[str]:
+    return text.split("\n\n")
+
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):
     if not message.document:
-        #await message.reply(strings["request_pdf"])
+        #await message.reply(strings["awaiting_pdf"])
         text = message.text
         words = text.split()
         if len(words) == 0:
@@ -102,11 +135,7 @@ async def handle_upload_button(message: Message):
             file_name = f'{words[0].lower()}_{int(time.time())}.txt'
         else:
             file_name = f'{words[0].lower()}_{words[1].lower()}_{int(time.time())}.txt'
-        destination = os.path.join(files_dir, str(message.chat.id), file_name)
-        try:
-            os.mkdir(os.path.join(files_dir, str(message.chat.id)))
-        except:
-            pass
+        destination = upload_to_database(splitter(text), file_name, message.chat.id, message.message_id, "txt")
         with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             f.write(text)
         await message.reply(strings["success"])
@@ -117,20 +146,38 @@ async def handle_upload_button(message: Message):
         file_info = await bot.get_file(file_id)
         file_path = file_info.file_path
         file_name = pdf.file_name
-        destination = os.path.join(files_dir, str(message.chat.id), file_name)
-        if os.path.exists(destination):
-            for i in range(1, 1025):
-                dest = destination[:-4]+ f' ({i})' + destination[-4:]
-                if not os.path.exists(dest):
-                    destination = dest
-                    break
+        destination, inner_file_name = find_file_location(message.chat.id, "pdf")
         await bot.download_file(file_path, destination)
-        
+        with open(destination, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            all_text = []
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                all_text.append(text)     
+            full_text = '\n'.join(all_text)
+        db.add(ListStrtoListData(splitter(full_text), inner_file_name, message.chat.id, message.message_id, file_name))
         await message.reply(strings['success'])
         user_states[message.from_user.id] = 'awaiting_pdf'
         
     except Exception as e:
         await message.reply(f"Error: {e}")
+
+@dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_query')
+async def handle_query_botton(message : Message):
+    ans = rag.query(message.text, message.chat.id)
+    response = []
+    for path in ans.paths:
+        print(f"path={path}")
+        if path != 'None':
+            print(FSInputFile(os.path.join(files_dir, str(message.chat.id), path)))
+            try:
+                await message.answer_document(document=FSInputFile(
+                    os.path.join(files_dir, str(message.chat.id), path),
+                      db.path_to_name(message.chat.id, path)))
+            except Exception as e:
+                await message.reply(f"Error: {e}")
+    await message.answer(ans.response)
+
 
 @dp.message()
 async def default_run(message : Message):

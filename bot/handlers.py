@@ -117,8 +117,8 @@ def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, messag
     db.add(ListStrtoListData(texts, file_name, chat_id, message_id, outer_file_name))
     return destination
 
-def splitter(text:str)->list[str]:
-    batches = splitter_instance.query(text).batches
+async def splitter(text:str)->list[str]:
+    batches = (await splitter_instance.query(text)).batches
     print(batches)
     return batches
 
@@ -135,7 +135,7 @@ async def handle_upload_button(message: Message):
             file_name = f'{words[0].lower()}.txt'
         else:
             file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
-        destination = await upload_to_database(splitter(text), file_name, message.chat.id, message.message_id, "txt")
+        destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
         with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             f.write(text)
         await message.reply(strings["success"])
@@ -155,7 +155,7 @@ async def handle_upload_button(message: Message):
                 text = page.extract_text()
                 all_text.append(text)     
             full_text = '\n'.join(all_text)
-        await db.add(ListStrtoListData(splitter(full_text), inner_file_name, message.chat.id, message.message_id, file_name))
+        db.add(ListStrtoListData(await splitter(full_text), inner_file_name, message.chat.id, message.message_id, file_name))
         await message.reply(strings['success'])
         user_states[message.from_user.id] = 'awaiting_pdf'
         

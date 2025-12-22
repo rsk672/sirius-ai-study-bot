@@ -1,19 +1,16 @@
-import asyncio
-import logging
-import sys
 import os
 import PyPDF2
-from aiogram import Bot, Dispatcher, html
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import Command
 from aiogram.types import Message
 
 from dotenv import load_dotenv
 
 from aiogram.types import Message, FSInputFile
 
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 import time
@@ -33,25 +30,21 @@ TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-files_dir = 'data\\files'
+files_dir = 'data/files'
 
 strings = {'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
            'hi' : 'Я суперпупермегаумный бот.', 'awaiting_pdf' : 'Отправьте PDF-файл или введите текст',
            'awaiting_query' : 'Пожалуйста, введите запрос',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
-           'pleasereset' : 'Пожалуйста, нажмите кнопку "Главная" внизу.', 'tba' : 'Такой функции у нас пока нет(('}
-
-'''@dp.message(CommandStart())
-async def command_start_handler(message: Message) -> None:
-    await message.answer(f"Hello, {html.bold(message.from_user.full_name)}!")
-'''
+           'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет((',
+           'pleasewait' : 'Подождите, идёт обработка...'}
 
 #Главная клавиатура - Загрузить и Спросить
 def get_main_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=strings["ask"], request_location=False))
     builder.add(KeyboardButton(text=strings["load"], request_location=False))
-    builder.add(KeyboardButton(text=strings["back"], request_location=False))
+    #builder.add(KeyboardButton(text=strings["back"], request_location=False))
     builder.adjust(2, 1) 
     return builder.as_markup(
         resize_keyboard=True,
@@ -90,7 +83,10 @@ async def handle_upload_button(message: Message):
 @dp.message(lambda message: message.text == strings["ask"]) ### Ответ на вопрос
 async def handle_upload_button(message: Message):
     user_states[message.from_user.id] = 'awaiting_query'
-    await message.answer(strings['awaiting_query'])
+    await message.answer(
+        strings['awaiting_query'],
+        reply_markup = get_empty_keyboard()
+    )
     
 
 @dp.message(lambda message: message.text == strings["back"]) ### Домой
@@ -98,7 +94,7 @@ async def handle_upload_button(message: Message):
     user_states[message.from_user.id] = 'main'
     await message.answer(
         strings['main'],
-        reply_markup=get_empty_keyboard()
+        reply_markup=get_main_keyboard()
     )
 
 def find_file_location(chat_id:int, type:str)->list[str]:
@@ -136,9 +132,9 @@ async def handle_upload_button(message: Message):
             await message.answer(strings['noinput'])
             return
         elif len(words) == 1:
-            file_name = f'{words[0].lower()}_{int(time.time())}.txt'
+            file_name = f'{words[0].lower()}.txt'
         else:
-            file_name = f'{words[0].lower()}_{words[1].lower()}_{int(time.time())}.txt'
+            file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
         destination = upload_to_database(splitter(text), file_name, message.chat.id, message.message_id, "txt")
         with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             f.write(text)
@@ -168,6 +164,7 @@ async def handle_upload_button(message: Message):
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_query')
 async def handle_query_botton(message : Message):
+    pleasewait = await message.answer(strings['pleasewait'])
     ans = rag.query(message.text, message.chat.id)
     response = []
     for path in ans.paths:
@@ -180,38 +177,13 @@ async def handle_query_botton(message : Message):
                       db.path_to_name(message.chat.id, path)))
             except Exception as e:
                 await message.reply(f"Error: {e}")
-    await message.answer(ans.response)
+    await pleasewait.delete()
+    await message.reply(
+        ans.response,
+        reply_markup=get_main_keyboard()
+    )
 
 
 @dp.message()
 async def default_run(message : Message):
     await message.answer(strings['pleasereset'])
-
-'''
-@dp.message()
-async def echo_handler(message: Message) -> None:
-    try:
-        await message.send_copy(chat_id=message.chat.id)
-    except TypeError:
-        await message.answer("Nice try!")
-'''
-
-"""@dp.message(Command('load'))
-async def load_notes(message: Message) -> None:
-    if not message.photo:
-        await message.reply("No photo files here")
-        return
-    try:
-        photo = message.photo[-1]
-        file_id = photo.file_id
-        file_info = await bot.get_file(file_id)
-        file_path = file_info.file_path
-        file_name = f"{file_id}.jpg"
-        destination = os.path.join(files_dir, file_name)
-        await bot.download_file(file_path, destination)
-        
-        await message.reply(f"Saved to {destination}")
-        
-    except Exception as e:
-        await message.reply(f"Error: {e}")
-"""

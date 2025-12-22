@@ -35,13 +35,13 @@ class RAG:
             )
         self.database = db.Database()
     
-    def query(self, text:str, chat_id:int, label:str=None):
+    async def query(self, text:str, chat_id:int, label:str=None):
         #2 step RAG
         #можно потом сделать более сложную архитектуру
         datas = self.database.get(text=text, chat_id=chat_id, label=label)
         serialized = "\n\n".join(
             (f"Path: {data.path}\nContent: {data.text}") for data in datas
         )
-        response = self.agent.invoke({"messages": [{"role": "user", "content": text + "\n\n" + serialized}]})
+        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text + "\n\n" + serialized}]})
         print(text + "\n\n" + serialized)
         return response['structured_response']

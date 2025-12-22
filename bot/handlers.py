@@ -21,9 +21,11 @@ import time
 from data.database import *
 from rag.rag import *
 
+from splitter.splitter import Splitter
+
 db = Database()
 rag = RAG()
-
+splitter_instance = Splitter()
 #databasa.py
 
 load_dotenv()
@@ -120,7 +122,9 @@ def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, messag
     return destination
 
 def splitter(text:str)->list[str]:
-    return text.split("\n\n")
+    batches = splitter_instance.query(text).batches
+    print(batches)
+    return batches
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):

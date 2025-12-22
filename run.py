@@ -1,30 +1,30 @@
 import asyncio
 import logging
 import sys
+import subprocess
+import atexit
 from dotenv import load_dotenv
-
-
-from models.main import start_embedding_server, stop_embedding_server
 from bot.handlers import bot, dp
 
 
-async def main() -> None:
-    embedding_task = asyncio.create_task(start_embedding_server())
+async def main():
+    server_process = subprocess.Popen(
+        [sys.executable, "-c", "from models.main import server_main; server_main()"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    logging.info("🚀 Запущен сервер эмбеддингов в subprocess")
 
-    await asyncio.sleep(3)
-    
     try:
         await dp.start_polling(bot)
     finally:
-        await stop_embedding_server()
-        await embedding_task
+        server_process.terminate()
+        server_process.wait(timeout=5)
+        server_process.kill()
 
 
 if __name__ == "__main__":
     load_dotenv()
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logging.info("Приложение остановлено пользователем")
+    asyncio.run(main())

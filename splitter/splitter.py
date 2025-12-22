@@ -1,6 +1,7 @@
 from langchain.agents import create_agent
 from data import database as db
 import os
+import asyncio
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from langchain_openai import ChatOpenAI
@@ -34,6 +35,6 @@ class Splitter:
             response_format=ToolStrategy(ResponseFormat),
         )
     
-    def query(self, text:str)->ResponseFormat:
-        response = self.agent.invoke({"messages": [{"role": "user", "content": text}]})
+    async def query(self, text:str)->ResponseFormat:
+        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text}]})
         return response['structured_response']

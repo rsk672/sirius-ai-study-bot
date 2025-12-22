@@ -4,7 +4,7 @@ from models.embedding_service import RemoteEmbeddingService
 import sqlite3
 import time
 import hashlib
-
+import asyncio
 DEBUG = False
 
 

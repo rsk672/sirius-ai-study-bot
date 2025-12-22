@@ -1,3 +1,0 @@
-aiogram
-python-dotenv
-numpy==2.1.1

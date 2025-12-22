@@ -23,7 +23,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
 
-files_dir = "data\\files"
+files_dir = "data/files"
 
 strings = {
     "main": "Главная",

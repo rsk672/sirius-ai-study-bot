@@ -2,7 +2,6 @@ import asyncio
 import logging
 import sys
 import subprocess
-import atexit
 from dotenv import load_dotenv
 from bot.handlers import bot, dp
 

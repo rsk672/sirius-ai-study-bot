@@ -19,6 +19,7 @@ from data.database import *
 from rag.rag import *
 from splitter.splitter import Splitter
 from OCR.ocr import ImageToText
+from utils.logger import logger
 
 import re
 

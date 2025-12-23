@@ -17,8 +17,8 @@ import time
 
 from data.database import *
 from rag.rag import *
-
 from splitter.splitter import Splitter
+from OCR.ocr import ImageToText
 
 db = Database()
 rag = RAG()
@@ -124,7 +124,37 @@ async def splitter(text:str)->list[str]:
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):
-    if not message.document:
+    try:
+        if message.document:
+            pdf = message.document
+            file_id = pdf.file_id
+            file_info = await bot.get_file(file_id)
+            file_path = file_info.file_path
+            file_name = pdf.file_name
+            destination, inner_file_name = find_file_location(message.chat.id, "pdf")
+            await bot.download_file(file_path, destination)
+            with open(destination, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                all_text = []
+                for page in pdf_reader.pages:
+                    text = page.extract_text()
+                    all_text.append(text)     
+                full_text = '\n'.join(all_text)
+            db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name))
+            await message.reply(strings['success'])
+            user_states[message.from_user.id] = 'awaiting_pdf'
+            return
+        if message.photo:
+            photo = message.photo[-1]
+            file_name = "Photo"
+            path, inner_file_name = find_file_location(message.chat.id, "png")
+            await bot.download(file=photo, destination=path)
+            text = await ImageToText(path)
+            await message.reply(text)
+            db.add(ListStrtoListData(await splitter(text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name))
+            return
         #await message.reply(strings["awaiting_pdf"])
         text = message.text
         words = text.split()
@@ -140,25 +170,7 @@ async def handle_upload_button(message: Message):
             f.write(text)
         await message.reply(strings["success"])
         return
-    try:
-        pdf = message.document
-        file_id = pdf.file_id
-        file_info = await bot.get_file(file_id)
-        file_path = file_info.file_path
-        file_name = pdf.file_name
-        destination, inner_file_name = find_file_location(message.chat.id, "pdf")
-        await bot.download_file(file_path, destination)
-        with open(destination, 'rb') as file:
-            pdf_reader = PyPDF2.PdfReader(file)
-            all_text = []
-            for page in pdf_reader.pages:
-                text = page.extract_text()
-                all_text.append(text)     
-            full_text = '\n'.join(all_text)
-        db.add(ListStrtoListData(await splitter(full_text), inner_file_name, message.chat.id, message.message_id, file_name))
-        await message.reply(strings['success'])
-        user_states[message.from_user.id] = 'awaiting_pdf'
-        
+
     except Exception as e:
         await message.reply(f"Error: {e}")
 

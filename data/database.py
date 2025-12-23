@@ -4,24 +4,20 @@ from models.embedding_service import RemoteEmbeddingService
 import sqlite3
 import time
 import hashlib
-import asyncio
 DEBUG = False
 
 
 class RemoteEmbeddingFunction(chromadb.EmbeddingFunction):
     def __init__(self):
         self.embedder = RemoteEmbeddingService()
-        # Убираем тестовый запрос при инициализации!
-        # Вместо этого получаем размерность из конфига
         from utils.config import MODEL_DIMENSIONS, MODEL
-        self.dimension = MODEL_DIMENSIONS.get(MODEL, 312)  # Безопасное получение размерности
+        self.dimension = MODEL_DIMENSIONS.get(MODEL, 312)
     
     def __call__(self, input: Documents) -> Embeddings:
         try:
             return self.embedder.embed_documents(input)
         except Exception as e:
             print(f"Ошибка генерации эмбеддингов: {str(e)}")
-            # Используем размерность из конфига
             return [[0.0] * self.dimension for _ in range(len(input))]
 
 class Data:

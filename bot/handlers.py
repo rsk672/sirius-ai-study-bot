@@ -20,6 +20,8 @@ from rag.rag import *
 
 from splitter.splitter import Splitter
 
+import re
+
 db = Database()
 rag = RAG()
 splitter_instance = Splitter()
@@ -124,10 +126,12 @@ async def splitter(text:str)->list[str]:
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):
+    message.photo
     if not message.document:
         #await message.reply(strings["awaiting_pdf"])
         text = message.text
-        words = text.split()
+        clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
+        words = clean_text.split()
         if len(words) == 0:
             await message.answer(strings['noinput'])
             return

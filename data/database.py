@@ -96,10 +96,11 @@ class Database:
             paths.append(str(i[0]))
         if(DEBUG):print(paths)
         if(len(paths)==0):
-            return
+            return []
         self.cur.execute(f"DELETE FROM database WHERE message_id={message_id}")
         self.sqldb.commit()
         self.collection.delete(where={"path":{"$in":paths}})
+        return paths
     
     def path_to_name(self, chat_id:int, path:str):
         query = self.cur.execute(f"SELECT file_name from database WHERE chat_id={chat_id} AND path='{path}'")

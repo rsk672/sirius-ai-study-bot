@@ -1,25 +1,12 @@
 import asyncio
 import logging
 import sys
-import subprocess
 from dotenv import load_dotenv
 from bot.handlers import bot, dp
 
 
 async def main():
-    server_process = subprocess.Popen(
-        [sys.executable, "-c", "from models.main import server_main; server_main()"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    logging.info("🚀 Запущен сервер эмбеддингов в subprocess")
-
-    try:
-        await dp.start_polling(bot)
-    finally:
-        server_process.terminate()
-        server_process.wait(timeout=5)
-        server_process.kill()
+    await dp.start_polling(bot)
 
 
 if __name__ == "__main__":

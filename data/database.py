@@ -1,20 +1,28 @@
 import chromadb
-import numpy as np
-import httpx
-import asyncio
-from chromadb import Documents, EmbeddingFunction, Embeddings
+from chromadb import Documents, Embeddings
+from models.embedding_service import RemoteEmbeddingService
 import sqlite3
 import time
 import hashlib
-
+import asyncio
 DEBUG = False
 
 
-
-class CustomEmbedder(chromadb.EmbeddingFunction):
+class RemoteEmbeddingFunction(chromadb.EmbeddingFunction):
+    def __init__(self):
+        self.embedder = RemoteEmbeddingService()
+        # Убираем тестовый запрос при инициализации!
+        # Вместо этого получаем размерность из конфига
+        from utils.config import MODEL_DIMENSIONS, MODEL
+        self.dimension = MODEL_DIMENSIONS.get(MODEL, 312)  # Безопасное получение размерности
+    
     def __call__(self, input: Documents) -> Embeddings:
-        embeddings = [[0.0]]
-        return embeddings
+        try:
+            return self.embedder.embed_documents(input)
+        except Exception as e:
+            print(f"Ошибка генерации эмбеддингов: {str(e)}")
+            # Используем размерность из конфига
+            return [[0.0] * self.dimension for _ in range(len(input))]
 
 class Data:
     def __init__(self, text:str, path:str, chat_id:int, message_id:int, file_name:str=str(time.time_ns()), time:int=0, label:str="None"):
@@ -47,7 +55,9 @@ class Database:
         self.sqldb = sqlite3.connect("sql.db")
         self.cur = self.sqldb.cursor()
         self.client = chromadb.PersistentClient()
-        self.collection = self.client.get_or_create_collection(name="inner_db", embedding_function=CustomEmbedder())
+        self.collection = self.client.get_or_create_collection(
+            name="inner_db", embedding_function=RemoteEmbeddingFunction()
+        )
         self.sqldb.execute("CREATE TABLE IF NOT EXISTS database"
         " (path text, chat_id int, message_id int, file_name text, time int, label text)")
     def add(self, datas:list[Data])->None:

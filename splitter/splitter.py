@@ -1,6 +1,7 @@
 from langchain.agents import create_agent
 from data import database as db
-import os, sys
+import os
+import asyncio
 from dotenv import load_dotenv
 from dataclasses import dataclass
 from langchain_openai import ChatOpenAI
@@ -11,9 +12,8 @@ from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
 @dataclass
 class ResponseFormat:
     """Response schema for the agent."""
-    response:str
-    paths:list[str]
-class RAG:
+    batches:list[str] # all of the batches from the text
+class Splitter:
     def __init__(self):
         load_dotenv()
         API_KEY = os.getenv("LLM_KEY")
@@ -24,24 +24,17 @@ class RAG:
             max_tokens=512,
             api_key=API_KEY
         )
-        
-        with open('rag/prompt.txt', 'r') as f:
-            prompt = f.read()
-            print(prompt, file = sys.stderr)
-            self.agent = create_agent(
-                model=self.model,
-                system_prompt=prompt,
-                response_format=ToolStrategy(ResponseFormat),
-            )
-        self.database = db.Database()
-    
-    async def query(self, text:str, chat_id:int, label:str=None):
-        #2 step RAG
-        #можно потом сделать более сложную архитектуру
-        datas = self.database.get(text=text, chat_id=chat_id, label=label)
-        serialized = "\n\n".join(
-            (f"Path: {data.path}\nContent: {data.text}") for data in datas
+        self.agent = create_agent(
+            model=self.model,
+            system_prompt="Your job is to split the text into batches, " \
+            "such that an embedding of each batch would carry useful information," \
+            " while keeping the size of each batch as big as possible." \
+            "You are a proffesional." \
+            "The entirety of the text should be within the batches," \
+            " but batches can overlap minorly to allow for better results of the embedding.",
+            response_format=ToolStrategy(ResponseFormat),
         )
-        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text + "\n\n" + serialized}]})
-        print(text + "\n\n" + serialized)
+    
+    async def query(self, text:str)->ResponseFormat:
+        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text}]})
         return response['structured_response']

@@ -139,15 +139,23 @@ async def handle_upload_button(message: Message):
             file_info = await bot.get_file(file_id)
             file_path = file_info.file_path
             file_name = pdf.file_name
-            destination, inner_file_name = find_file_location(message.chat.id, "pdf")
+            file_type = file_name.split('.')[-1].lower()
+            destination, inner_file_name = find_file_location(message.chat.id, file_type)
             await bot.download_file(file_path, destination)
-            with open(destination, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                all_text = []
-                for page in pdf_reader.pages:
-                    text = page.extract_text()
-                    all_text.append(text)     
-                full_text = '\n'.join(all_text)
+            if file_type == "pdf":
+                with open(destination, 'rb') as file:
+                    pdf_reader = PyPDF2.PdfReader(file)
+                    all_text = []
+                    for page in pdf_reader.pages:
+                        text = page.extract_text()
+                        all_text.append(text)     
+                    full_text = '\n'.join(all_text)
+            if file_type in ["png", "jpg", "jpeg", "bmp", "tiff"]:
+                full_text = await ImageToText(destination)
+                await message.reply(full_text)
+            if file_type == "txt":
+                with open(destination) as q:
+                    full_text = q.read()
             db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
                                       message.chat.id, message.message_id, file_name))
             await message.reply(strings['success'])

@@ -21,6 +21,7 @@ from splitter.splitter import Splitter
 from OCR.ocr import ImageToText
 
 import re
+from utils.logger import logger
 
 db = Database()
 rag = RAG()
@@ -160,54 +161,71 @@ async def splitter(text:str)->list[str]:
 async def handle_upload_button(message: Message):
     try:
         if message.document:
-            pdf = message.document
-            file_id = pdf.file_id
+            doc = message.document
+            file_id = doc.file_id
             file_info = await bot.get_file(file_id)
             file_path = file_info.file_path
-            file_name = pdf.file_name
-            destination, inner_file_name = find_file_location(message.chat.id, "pdf")
+            file_name = doc.file_name
+            
+            file_ext = os.path.splitext(file_name)[1].lower()[1:]
+            
+            destination, inner_file_name = find_file_location(message.chat.id, file_ext)
             await bot.download_file(file_path, destination)
-            with open(destination, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
-                all_text = []
-                for page in pdf_reader.pages:
-                    text = page.extract_text()
-                    all_text.append(text)     
-                full_text = '\n'.join(all_text)
-            buffer.append((None, [await splitter(full_text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name]))
-        elif message.photo:
+            
+            full_text = ""
+            if file_ext in ['pdf']:
+                full_text = await PDFToText(destination)
+
+            elif file_ext in ['jpg', 'jpeg', 'bmp', 'tiff', 'gif', 'png']:
+                full_text = await ImageToText(destination)
+            elif not full_text:
+                try:
+                    with open(destination, 'r', encoding='utf-8', errors='ignore') as file:
+                        full_text = file.read()
+                except:
+                    pass
+            if full_text:
+                logger.info(f"Распознанный текст:\n{full_text}...")
+                await message.reply(f"Распознанный текст:\n{full_text}...")
+                db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
+                                        message.chat.id, message.message_id, file_name))
+                await message.reply(strings['success'])
+            else:
+                await message.reply(f"Не удалось извлечь текст из файла формата {file_ext.upper()}")
+            return
+            
+        if message.photo:
             photo = message.photo[-1]
-            file_name = "Photo"
-            path, inner_file_name = find_file_location(message.chat.id, "png")
+            file_name = f"Photo_{int(time.time())}"
+            file_ext = "jpg"
+            path, inner_file_name = find_file_location(message.chat.id, file_ext)
             await bot.download(file=photo, destination=path)
             text = await ImageToText(path)
-            
-            buffer.append((None, [await splitter(text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name]))
-            #await message.reply(strings["awaiting_pdf"])
+            logger.info(f"Распознанный текст:\n{text}...")
+            await message.reply(f"Распознанный текст:\n{text}...")
+            db.add(ListStrtoListData(await splitter(text), inner_file_name,
+                                    message.chat.id, message.message_id, file_name))
+            return
+        text = message.text
+        clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
+        words = clean_text.split()
+        if len(words) == 0:
+            await message.answer(strings['noinput'])
+            return
+        elif len(words) == 1:
+            file_name = f'{words[0].lower()}.txt'
         else:
-            text = message.text
-            clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
-            words = clean_text.split()
-            if len(words) == 0:
-                await message.answer(strings['noinput'])
-                return
-            elif len(words) == 1:
-                file_name = f'{words[0].lower()}.txt'
-            else:
-                file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
-            buffer.append(([await splitter(text), file_name, message.chat.id, message.message_id, "txt"], text))
-            #destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
-            #with open(os.path.join(destination), 'w', encoding='utf-8') as f:
-            #    f.write(text)
-            #await message.reply(strings["success"])
-        await message.reply(str(buffer[-1][1])[:4000],
-                            reply_markup=get_checkout_keyboard())
-        user_states[message.from_user.id] = 'checkout'
+            file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
+        destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
+        with open(os.path.join(destination), 'w', encoding='utf-8') as f:
+            f.write(text)
+        await message.reply(strings["success"])
+        return
 
     except Exception as e:
-        await message.reply(f"Error: {e}")
+            logger.error(f"Ошибка обработки файла: {str(e)}")
+            await message.reply(f"Ошибка при обработке файла: {str(e)}")
+
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_query')
 async def handle_query_botton(message : Message):

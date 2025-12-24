@@ -123,6 +123,8 @@ async def handle_upload_button(message: Message):
 @dp.message(lambda message: message.text == strings["back"]) ### Домой
 async def handle_upload_button(message: Message):
     user_states[message.from_user.id] = 'main'
+    global buffer
+    buffer = []
     await message.answer(
         strings['main'],
         reply_markup=get_main_keyboard()
@@ -200,7 +202,7 @@ async def handle_upload_button(message: Message):
             #with open(os.path.join(destination), 'w', encoding='utf-8') as f:
             #    f.write(text)
             #await message.reply(strings["success"])
-        await message.reply(str(buffer[-1][1]),
+        await message.reply(str(buffer[-1][1])[:4000],
                             reply_markup=get_checkout_keyboard())
         user_states[message.from_user.id] = 'checkout'
 

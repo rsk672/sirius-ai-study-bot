@@ -1,13 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
-import logging
-import sys
 from typing import List
 from utils.config import MODEL, DEVICE
-
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 logger.info(f"Загрузка модели {MODEL}...")
 model = SentenceTransformer(MODEL, trust_remote_code=True, device=DEVICE)
@@ -36,6 +32,8 @@ async def get_embeddings(request: BatchEmbeddingRequest):
     Принимает: {"texts": ["текст1", "текст2", ...]}\n
     Возвращает: {"embeddings": [{"embedding": [...], ...}, ...]}
     """
+    logger.info(f"POST /embeddings | Текстов: {len(request.texts)}")
+    
     try:
         response_list = []
         for text in request.texts:
@@ -48,6 +46,7 @@ async def get_embeddings(request: BatchEmbeddingRequest):
                     embedding=embedding_list, dimensions=len(embedding_list)
                 )
             )
+        logger.info(f"Успешно обработано {len(response_list)} эмбеддингов")
         return BatchResponse(embeddings=response_list)
 
     except Exception as e:
@@ -57,6 +56,7 @@ async def get_embeddings(request: BatchEmbeddingRequest):
 
 @app.get("/health")
 async def health_check():
+    logger.debug("🩺 GET /health | Проверка работоспособности")
     return {
         "status": "ok",
         "model": MODEL,

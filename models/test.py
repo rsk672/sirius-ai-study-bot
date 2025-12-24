@@ -7,7 +7,7 @@ async def main():
     texts = ["Привет мир", "Как дела?"]
 
     embeddings = await embedder.aembed_documents(texts)
-    print(f"Получено {len(embeddings)} эмбеддингов")
+    print(f"Получено {embeddings} эмбеддингов")
     print(f"Размерность: {len(embeddings[0])}")
 
 

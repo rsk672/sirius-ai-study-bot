@@ -277,4 +277,3 @@ async def handle(message : Message):
 @dp.message()
 async def default_run(message : Message):
     await message.answer(strings['pleasereset'])
-

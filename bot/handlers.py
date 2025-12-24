@@ -36,7 +36,7 @@ files_dir = 'data/files'
 
 strings = {'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
            'hi' : 'Я суперпупермегаумный бот.', 'awaiting_pdf' : 'Отправьте PDF-файл или введите текст',
-           'awaiting_query' : 'Пожалуйста, введите запрос',
+           'awaiting_query' : 'Пожалуйста, введите запрос', 'save' : 'Сохранить',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
            'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет((',
            'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Error: out of tokens'}
@@ -54,7 +54,19 @@ def get_main_keyboard():
         #input_field_placeholder="Выберите действие..."
     )
 
-#Клавиатура, когда пользователь отправляет пдф, только назад
+#Клавиатура, когда пользователь отправляет пдф, сохранить или нет
+def get_checkout_keyboard():
+    builder = ReplyKeyboardBuilder()
+    builder.add(KeyboardButton(text=strings["save"], request_location=False))
+    builder.add(KeyboardButton(text=strings["back"], request_location=False))
+    builder.adjust(2, 1)
+    return builder.as_markup(
+        resize_keyboard=True,
+        one_time_keyboard=False,
+        #input_field_placeholder="Выберите действие..."
+    )
+
+#Клавиатура, когда пользователь работает с чатом, только назад
 def get_empty_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.add(KeyboardButton(text=strings["back"], request_location=False))
@@ -90,6 +102,23 @@ async def handle_upload_button(message: Message):
         reply_markup = get_empty_keyboard()
     )
     
+buffer = []
+
+@dp.message(lambda message: message.text == strings["save"]) ### Сохранить
+async def handle_upload_button(message: Message):
+    for x in buffer:
+        if x[0] == None:
+            db.add(ListStrtoListData(*x[1]))
+        else:
+            destination = upload_to_database(*x[0])
+            with open(os.path.join(destination), 'w', encoding='utf-8') as f:
+                f.write(x[1])
+    user_states[message.from_user.id] = 'main'
+    await message.answer(
+        strings['success'],
+        reply_markup = get_main_keyboard()
+    )
+    
 
 @dp.message(lambda message: message.text == strings["back"]) ### Домой
 async def handle_upload_button(message: Message):
@@ -120,6 +149,7 @@ def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, messag
     return destination
 
 async def splitter(text:str)->list[str]:
+    print(text)
     batches = (await splitter_instance.query(text)).batches
     print(batches)
     return batches
@@ -142,37 +172,37 @@ async def handle_upload_button(message: Message):
                     text = page.extract_text()
                     all_text.append(text)     
                 full_text = '\n'.join(all_text)
-            db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name))
-            await message.reply(strings['success'])
-            user_states[message.from_user.id] = 'awaiting_pdf'
-            return
-        if message.photo:
+            buffer.append((None, [await splitter(full_text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name]))
+        elif message.photo:
             photo = message.photo[-1]
             file_name = "Photo"
             path, inner_file_name = find_file_location(message.chat.id, "png")
             await bot.download(file=photo, destination=path)
             text = await ImageToText(path)
-            await message.reply(text)
-            db.add(ListStrtoListData(await splitter(text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name))
-            return
-        #await message.reply(strings["awaiting_pdf"])
-        text = message.text
-        clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
-        words = clean_text.split()
-        if len(words) == 0:
-            await message.answer(strings['noinput'])
-            return
-        elif len(words) == 1:
-            file_name = f'{words[0].lower()}.txt'
+            
+            buffer.append((None, [await splitter(text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name]))
+            #await message.reply(strings["awaiting_pdf"])
         else:
-            file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
-        destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
-        with open(os.path.join(destination), 'w', encoding='utf-8') as f:
-            f.write(text)
-        await message.reply(strings["success"])
-        return
+            text = message.text
+            clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
+            words = clean_text.split()
+            if len(words) == 0:
+                await message.answer(strings['noinput'])
+                return
+            elif len(words) == 1:
+                file_name = f'{words[0].lower()}.txt'
+            else:
+                file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
+            buffer.append(([await splitter(text), file_name, message.chat.id, message.message_id, "txt"], text))
+            #destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
+            #with open(os.path.join(destination), 'w', encoding='utf-8') as f:
+            #    f.write(text)
+            #await message.reply(strings["success"])
+        await message.reply(str(buffer[-1][1]),
+                            reply_markup=get_checkout_keyboard())
+        user_states[message.from_user.id] = 'checkout'
 
     except Exception as e:
         await message.reply(f"Error: {e}")
@@ -196,7 +226,7 @@ async def handle_query_botton(message : Message):
         await pleasewait.delete()
         await message.reply(
             ans.response,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_empty_keyboard()
         )
     except:
         await pleasewait.delete()

@@ -120,7 +120,7 @@ def upload_to_database(texts:list[str], outer_file_name:str, chat_id:int, messag
     return destination
 
 async def splitter(text:str)->list[str]:
-    batches = (await splitter_instance.query(text)).batches
+    batches = (await splitter_instance.query(text))
     print(batches)
     return batches
 

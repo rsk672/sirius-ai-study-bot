@@ -24,6 +24,7 @@ from utils.logger import logger
 import re
 from utils.logger import logger
 from OCR.ocr import PDFToText
+from name import Name
 
 db = Database()
 rag = RAG()
@@ -37,14 +38,17 @@ dp = Dispatcher()
 
 files_dir = 'data/files'
 
-strings = {'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
+
+strings = Name({'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
            'hi' : 'Я суперпупермегаумный бот.', 'awaiting_pdf' : 'Отправьте PDF-файл или введите текст',
            'awaiting_query' : 'Пожалуйста, введите запрос', 'save' : 'Сохранить',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
-           'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет((',
+           'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет',
            'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Error: out of tokens',
            'delete': 'Удалить', 'awaiting_deletion':"Ответьте на сообщение с конспектом, которое вы хотите удалить.",
-           'deleted': 'Файл успешно удалён', 'nothing_to_delete': 'Невозможно удалить т.к. нечего удалять'}
+           'deleted': 'Файл успешно удалён', 'nothing_to_delete': 'Невозможно удалить т.к. нечего удалять', 
+           'no' : 'Нет', 'yes' : 'Да', 'OK' : 'Хорошо'
+           })
 
 #Главная клавиатура - Загрузить и Спросить
 def get_main_keyboard():
@@ -57,26 +61,14 @@ def get_main_keyboard():
 
 #Клавиатура, когда пользователь отправляет пдф, сохранить или нет
 def get_checkout_keyboard():
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text=strings["save"], request_location=False))
-    builder.add(KeyboardButton(text=strings["back"], request_location=False))
-    builder.adjust(2, 1)
-    return builder.as_markup(
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        #input_field_placeholder="Выберите действие..."
-    )
+    keyhoard = [[KeyboardButton(text=strings["save"]), 
+                 KeyboardButton(text=strings["back"])]]
+    return ReplyKeyboardMarkup(keyboard=keyhoard)
 
 #Клавиатура, когда пользователь работает с чатом, только назад
 def get_empty_keyboard():
-    builder = ReplyKeyboardBuilder()
-    builder.add(KeyboardButton(text=strings["back"], request_location=False))
-    builder.adjust(2, 1)
-    return builder.as_markup(
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        #input_field_placeholder="Выберите действие..."
-    )
+    keyhoard = [[KeyboardButton(text=strings["save"])]]
+    return ReplyKeyboardMarkup(keyboard=keyhoard)
 
 user_states = {}
 @dp.message(Command("start"))
@@ -129,6 +121,15 @@ async def handle_upload_button(message: Message):
         strings['main'],
         reply_markup=get_main_keyboard()
     )
+
+@dp.message(lambda message: message.text == strings["delete"]) ### Ответ на вопрос
+async def handle_delete_button(message: Message):
+    user_states[message.from_user.id] = 'awaiting_deletion'
+    await message.answer(
+        strings['awaiting_deletion'],
+        reply_markup = get_empty_keyboard()
+    )
+
 
 def find_file_location(chat_id:int, type:str)->list[str]:
     file_name = f'{int(time.time_ns())}.{type}'
@@ -186,15 +187,15 @@ async def handle_upload_button(message: Message):
                     pass
             if full_text:
                 logger.info(f"Распознанный текст:\n{full_text}...")
-                await message.reply(f"Распознанный текст:\n{full_text}...")
-                db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
-                                        message.chat.id, message.message_id, file_name))
-                await message.reply(strings['success'])
+                #await message.reply(f"Распознанный текст:\n{full_text}...")
+                buffer.append((None, [await splitter(full_text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name]))
+                #await message.reply(strings['success'])
             else:
                 await message.reply(f"Не удалось извлечь текст из файла формата {file_ext.upper()}")
-            return
+                return
             
-        if message.photo:
+        elif message.photo:
             photo = message.photo[-1]
             file_name = f"Photo_{int(time.time())}"
             file_ext = "jpg"
@@ -202,29 +203,32 @@ async def handle_upload_button(message: Message):
             await bot.download(file=photo, destination=path)
             text = await ImageToText(path)
             logger.info(f"Распознанный текст:\n{text}...")
-            await message.reply(f"Распознанный текст:\n{text}...")
-            db.add(ListStrtoListData(await splitter(text), inner_file_name,
-                                    message.chat.id, message.message_id, file_name))
-            return
-        text = message.text
-        clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
-        words = clean_text.split()
-        if len(words) == 0:
-            await message.answer(strings['noinput'])
-            return
-        elif len(words) == 1:
-            file_name = f'{words[0].lower()}.txt'
+            buffer.append((None, [await splitter(text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name]))
+            #db.add(ListStrtoListData(await splitter(text), inner_file_name,
+            #                        message.chat.id, message.message_id, file_name))
         else:
-            file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
-        destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
-        with open(os.path.join(destination), 'w', encoding='utf-8') as f:
-            f.write(text)
-        await message.reply(strings["success"])
-        return
+            text = message.text
+            clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
+            words = clean_text.split()
+            if len(words) == 0:
+                await message.answer(strings['noinput'])
+                return
+            elif len(words) == 1:
+                file_name = f'{words[0].lower()}.txt'
+            else:
+                file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
+            buffer.append(([await splitter(text), file_name, message.chat.id, message.message_id, "txt"], text))
+            
+        await message.reply(str(buffer[-1][1])[:4000], reply_markup = get_checkout_keyboard())
+        user_states[message.from_user.id] = 'checkout'
+            
 
     except Exception as e:
             logger.error(f"Ошибка обработки файла: {str(e)}")
-            await message.reply(f"Ошибка при обработке файла: {str(e)}")
+            await message.reply(f"Ошибка при обработке файла: {str(e)}", reply_markup = get_main_keyboard())
+            user_states[message.from_user.id] = 'checkout'
+            
 
 
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_query')

@@ -44,10 +44,10 @@ strings = Name({'main' : 'Главная', 'load' : 'Загрузить', 'ask' 
            'awaiting_query' : 'Пожалуйста, введите запрос', 'save' : 'Сохранить',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
            'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет',
-           'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Error: out of tokens',
+           'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Out of tokens',
            'delete': 'Удалить', 'awaiting_deletion':"Ответьте на сообщение с конспектом, которое вы хотите удалить.",
            'deleted': 'Файл успешно удалён', 'nothing_to_delete': 'Невозможно удалить т.к. нечего удалять', 
-           'no' : 'Нет', 'yes' : 'Да', 'OK' : 'Хорошо'
+           'no' : 'Нет', 'yes' : 'Да', 'OK' : 'Хорошо', 'smthwentwrong' : 'Что-то пошло не так'
            })
 
 #Главная клавиатура - Загрузить и Спросить
@@ -67,7 +67,7 @@ def get_checkout_keyboard():
 
 #Клавиатура, когда пользователь работает с чатом, только назад
 def get_empty_keyboard():
-    keyhoard = [[KeyboardButton(text=strings["save"])]]
+    keyhoard = [[KeyboardButton(text=strings["back"])]]
     return ReplyKeyboardMarkup(keyboard=keyhoard)
 
 user_states = {}
@@ -161,6 +161,7 @@ async def splitter(text:str)->list[str]:
 @dp.message(lambda message: user_states.get(message.from_user.id) == 'awaiting_pdf')
 async def handle_upload_button(message: Message):
     try:
+        pleasewait = await message.answer(strings['pleasewait'])
         if message.document:
             doc = message.document
             file_id = doc.file_id
@@ -176,6 +177,7 @@ async def handle_upload_button(message: Message):
             full_text = ""
             if file_ext in ['pdf']:
                 full_text = await PDFToText(destination)
+                print('PDFTpText\n\n\n\n\n', full_text)
 
             elif file_ext in ['jpg', 'jpeg', 'bmp', 'tiff', 'gif', 'png']:
                 full_text = await ImageToText(destination)
@@ -188,9 +190,10 @@ async def handle_upload_button(message: Message):
             if full_text:
                 logger.info(f"Распознанный текст:\n{full_text}...")
                 #await message.reply(f"Распознанный текст:\n{full_text}...")
-                buffer.append((None, [await splitter(full_text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name]))
-                #await message.reply(strings['success'])
+                #buffer.append((None, [await splitter(full_text), inner_file_name,
+                #                      message.chat.id, message.message_id, file_name]))
+                db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
+                                      message.chat.id, message.message_id, file_name))
             else:
                 await message.reply(f"Не удалось извлечь текст из файла формата {file_ext.upper()}")
                 return
@@ -198,15 +201,15 @@ async def handle_upload_button(message: Message):
         elif message.photo:
             photo = message.photo[-1]
             file_name = f"Photo_{int(time.time())}"
-            file_ext = "jpg"
+            file_ext = "png"
             path, inner_file_name = find_file_location(message.chat.id, file_ext)
             await bot.download(file=photo, destination=path)
             text = await ImageToText(path)
             logger.info(f"Распознанный текст:\n{text}...")
-            buffer.append((None, [await splitter(text), inner_file_name,
-                                      message.chat.id, message.message_id, file_name]))
-            #db.add(ListStrtoListData(await splitter(text), inner_file_name,
-            #                        message.chat.id, message.message_id, file_name))
+            #buffer.append((None, [await splitter(text), inner_file_name,
+            #                          message.chat.id, message.message_id, file_name]))
+            db.add(ListStrtoListData(await splitter(text), inner_file_name,
+                                    message.chat.id, message.message_id, file_name))
         else:
             text = message.text
             clean_text  = re.sub(r'[^a-zA-Zа-яА-ЯёЁ0-9\s_]', '', text)
@@ -218,16 +221,24 @@ async def handle_upload_button(message: Message):
                 file_name = f'{words[0].lower()}.txt'
             else:
                 file_name = f'{words[0].lower()}_{words[1].lower()}.txt'
-            buffer.append(([await splitter(text), file_name, message.chat.id, message.message_id, "txt"], text))
+            #buffer.append(([await splitter(text), file_name, message.chat.id, message.message_id, "txt"], text))
+            destination = upload_to_database(await splitter(text), file_name, message.chat.id, message.message_id, "txt")
+            with open(os.path.join(destination), 'w', encoding='utf-8') as f:
+                f.write(text)
+
             
-        await message.reply(str(buffer[-1][1])[:4000], reply_markup = get_checkout_keyboard())
+        #await message.reply(str(buffer[-1][1][0])[:4000], reply_markup = get_checkout_keyboard())
+        #user_states[message.from_user.id] = 'checkout'
+        await message.reply(strings['success'], reply_markup = get_main_keyboard())
         user_states[message.from_user.id] = 'checkout'
+        await pleasewait.delete()
             
 
     except Exception as e:
             logger.error(f"Ошибка обработки файла: {str(e)}")
-            await message.reply(f"Ошибка при обработке файла: {str(e)}", reply_markup = get_main_keyboard())
+            await message.reply(f"Ошибка при обработке файла: {e}", reply_markup = get_main_keyboard())
             user_states[message.from_user.id] = 'checkout'
+            await pleasewait.delete()
             
 
 
@@ -246,7 +257,8 @@ async def handle_query_botton(message : Message):
                         os.path.join(files_dir, str(message.chat.id), path),
                         db.path_to_name(message.chat.id, path)))
                 except Exception as e:
-                    await message.reply(f"Error: {e}")
+                    print(f"Error: {e}")
+                    await message.reply(strings['smthwentwrong'])
         await pleasewait.delete()
         await message.reply(
             ans.response,
@@ -254,8 +266,9 @@ async def handle_query_botton(message : Message):
         )
     except:
         await pleasewait.delete()
+        print(f"Error: {strings['outoftokens']}")
         await message.reply(
-            strings['outoftokens'],
+            strings['smthwentwrong'],
             reply_markup=get_main_keyboard()
         )
 
@@ -269,10 +282,11 @@ async def handle(message : Message):
             return
         for path in paths:
             os.remove(os.path.join(files_dir, str(message.chat.id), path))
-        await message.reply_to_message.reply(strings['deleted'])
+        await message.reply_to_message.reply(strings['deleted'], reply_markup=get_main_keyboard())
         await bot.set_message_reaction(message.chat.id, message.reply_to_message.message_id, reaction=[{"type": "emoji", "emoji": "🔥"}], is_big=True)
     except Exception as e:
-        await message.reply(f"Error: {e}")
+        print(f"Error: {e}")
+        await message.reply(strings['smthwentwrong'])
         
 @dp.message()
 async def default_run(message : Message):

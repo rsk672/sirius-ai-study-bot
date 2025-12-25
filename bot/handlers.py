@@ -7,7 +7,6 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.types import ReplyKeyboardMarkup
 from dotenv import load_dotenv
-
 from aiogram.types import Message, FSInputFile
 
 from aiogram.types import KeyboardButton
@@ -279,9 +278,12 @@ async def handle_query_botton(message : Message):
                 except Exception as e:
                     print(f"Error: {e}")
                     await message.reply(strings['smthwentwrong'])
+        
+        filtered_ans = str(ans.response)
+        filtered_ans = filtered_ans.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")  
         await pleasewait.delete()
         await message.reply(
-            ans.response,
+            filtered_ans,
             reply_markup=get_empty_keyboard()
         )
     except:

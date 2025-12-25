@@ -40,14 +40,23 @@ files_dir = 'data/files'
 
 
 strings = Name({'main' : 'Главная', 'load' : 'Загрузить', 'ask' : 'Спросить', 'back' : 'Главная',
-           'hi' : 'Я суперпупермегаумный бот.', 'awaiting_pdf' : 'Отправьте PDF, фото или введите текст',
+           'hi' : 'Привет! 👋 Я твой помощник для работы с конспектами.\n\n'
+           'Загружай материалы, задавай вопросы по ним или управляй ими — всё в одном месте! Более подробно в /help 📚\n\n'\
+           'Выбирай действие в меню ⬇️',
+           'tutorial' : '✨ Доступные действия:\n\n'\
+           '📤 Загрузить — Отправь мне текст, PDF-файл или фото. Я сохраню это как конспект для вопросов.\n\n'\
+           '💬 Спросить — Перейди в режим чата, чтобы задавать вопросы по всем загруженным материалам. Я найду ответы в твоих конспектах!\n\n'\
+           '🗑 Удалить — Хочешь удалить конкретный конспект? Ответь (reply) на сообщение с ним этой командой, и я его забуду.\n\n'\
+           'Готов помочь с учебой! 🚀',
+           'awaiting_pdf' : 'Отправьте PDF, фото или введите текст',
            'awaiting_query' : 'Пожалуйста, введите запрос', 'save' : 'Сохранить',
            'success' : 'Файл успешно сохранён. Хотите отправить еще?', 'noinput' : 'Отправьте непустое сообщение!',
            'pleasereset' : 'Пожалуйста, используйте команду /start.', 'tba' : 'Такой функции у нас пока нет',
            'pleasewait' : 'Подождите, идёт обработка...', 'outoftokens' : 'Out of tokens',
            'delete': 'Удалить', 'awaiting_deletion':"Ответьте на сообщение с конспектом, которое вы хотите удалить.",
            'deleted': 'Файл успешно удалён', 'nothing_to_delete': 'Невозможно удалить т.к. нечего удалять', 
-           'no' : 'Нет', 'yes' : 'Да', 'OK' : 'Хорошо', 'smthwentwrong' : 'Что-то пошло не так'
+           'no' : 'Нет', 'yes' : 'Да', 'OK' : 'Хорошо', 'smthwentwrong' : 'Что-то пошло не так',
+           'filenotsupport' : 'Неподдерживаемый формат файла: {0}', 'emptyfile' : 'Не удалось извлечь текст из файла'
            })
 
 #Главная клавиатура - Загрузить и Спросить
@@ -77,6 +86,11 @@ async def cmd_start(message: Message):
         strings["hi"],
         reply_markup=get_main_keyboard()
     )
+
+@dp.message(Command("help"))
+async def cmd_start(message: Message):
+    await message.answer(strings["tutorial"])
+
 
 @dp.message(lambda message: message.text == strings["load"])
 async def handle_upload_button(message: Message):
@@ -173,20 +187,26 @@ async def handle_upload_button(message: Message):
             
             destination, inner_file_name = find_file_location(message.chat.id, file_ext)
             await bot.download_file(file_path, destination)
+            logger.info(f'{file_ext=}')
             
             full_text = ""
             if file_ext in ['pdf']:
                 full_text = await PDFToText(destination)
                 print('PDFTpText\n\n\n\n\n', full_text)
 
-            elif file_ext in ['jpg', 'jpeg', 'bmp', 'tiff', 'gif', 'png']:
+                logger.info(f'OCR ENDED {full_text=}')
+
+            elif file_ext in ['jpg', 'jpeg', 'bmp', 'tiff', 'png']:
                 full_text = await ImageToText(destination)
-            elif not full_text:
+            elif file_ext in ['txt']:
                 try:
                     with open(destination, 'r', encoding='utf-8', errors='ignore') as file:
                         full_text = file.read()
                 except:
                     pass
+            else:
+                await message.reply(strings['filenotsupport', file_ext.upper()])
+                return
             if full_text:
                 logger.info(f"Распознанный текст:\n{full_text}...")
                 #await message.reply(f"Распознанный текст:\n{full_text}...")
@@ -195,7 +215,7 @@ async def handle_upload_button(message: Message):
                 db.add(ListStrtoListData(await splitter(full_text), inner_file_name,
                                       message.chat.id, message.message_id, file_name))
             else:
-                await message.reply(f"Не удалось извлечь текст из файла формата {file_ext.upper()}")
+                await message.reply(strings['emptyfile'])
                 return
             
         elif message.photo:
@@ -236,7 +256,7 @@ async def handle_upload_button(message: Message):
 
     except Exception as e:
             logger.error(f"Ошибка обработки файла: {str(e)}")
-            await message.reply(f"Ошибка при обработке файла: {e}", reply_markup = get_main_keyboard())
+            await message.reply(strings['smthwentwrong'], reply_markup = get_main_keyboard())
             user_states[message.from_user.id] = 'checkout'
             await pleasewait.delete()
             

@@ -22,7 +22,7 @@
 
 
 ```bash
-git clone https://github.com/ваш-username/notes-bot.git
+git clone https://github.com/rsk672/sirius-ai-study-bot.git
 cd notes-bot
 ```
 

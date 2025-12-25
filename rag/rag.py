@@ -8,8 +8,7 @@ from langchain.chat_models import init_chat_model
 from langchain.tools import tool, ToolRuntime
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
-
-
+from langgraph.checkpoint.memory import InMemorySaver
 @dataclass
 class ResponseFormat:
     """Response schema for the agent."""
@@ -31,6 +30,7 @@ class RAG:
             self.prompt = f.read()
             print(self.prompt, file = sys.stderr)
         self.database = db.Database()
+        self.checkpointer = InMemorySaver()
 
     def gen_tools(self, chat_id:int, label:str) -> list:
         @tool
@@ -54,6 +54,8 @@ class RAG:
                 system_prompt=self.prompt,
                 tools=tools,
                 response_format=ToolStrategy(ResponseFormat),
+                checkpointer=self.checkpointer,
             )
-        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text}]})
+        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text}]},
+                                            {"configurable": {"thread_id": str(chat_id)}})
         return response['structured_response']

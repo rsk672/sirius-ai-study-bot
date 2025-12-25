@@ -7,7 +7,6 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.types import ReplyKeyboardMarkup
 from dotenv import load_dotenv
-
 from aiogram.types import Message, FSInputFile
 
 from aiogram.types import KeyboardButton
@@ -207,11 +206,19 @@ async def handle_query_botton(message : Message):
                         db.path_to_name(message.chat.id, path)))
                 except Exception as e:
                     await message.reply(f"Error: {e}")
-        await pleasewait.delete()
-        await message.reply(
-            ans.response,
-            reply_markup=get_main_keyboard()
-        )
+        logger.info(ans.response)
+        print(ans.response)
+        try:
+            filtered_ans = str(ans.response)
+            filtered_ans = filtered_ans.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            await message.reply(
+                str(filtered_ans),
+                reply_markup=get_main_keyboard(),
+                parse_mode="HTML"
+            )
+            await pleasewait.delete()
+        except Exception as e:
+            await message.reply(f"Error: {e}")
     except:
         await pleasewait.delete()
         await message.reply(

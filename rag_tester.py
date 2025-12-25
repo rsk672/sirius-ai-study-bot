@@ -1,5 +1,6 @@
 from rag import rag
 from data import database as db
+import asyncio
 rg = rag.RAG()
 rg.database.add(db.ListStrtoListData(["""1+1=3""", """According to the Zigmondy's theorem a^n - b^n where
                         a and b are coprime natural numbers will always have a prime devisor that is not present in any of the
@@ -32,5 +33,5 @@ Yeah! Let's shake it up a little.
 
   
 Barry! Breakfast is ready!""", "test/data/bees", 123, 1)])
-print(rg.query("могут ли пчёлы летать?", 123))
+print(asyncio.run(rg.query("могут ли пчёлы летать?", 123)))
 rg.database.remove(123, 1)

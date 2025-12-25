@@ -8,11 +8,14 @@ from langchain.chat_models import init_chat_model
 from langchain.tools import tool, ToolRuntime
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
+
+
 @dataclass
 class ResponseFormat:
     """Response schema for the agent."""
     response:str
     paths:list[str]
+
 class RAG:
     def __init__(self):
         load_dotenv()
@@ -24,24 +27,33 @@ class RAG:
             max_tokens=512,
             api_key=API_KEY
         )
-        
         with open('rag/prompt.txt', 'r') as f:
-            prompt = f.read()
-            print(prompt, file = sys.stderr)
-            self.agent = create_agent(
+            self.prompt = f.read()
+            print(self.prompt, file = sys.stderr)
+        self.database = db.Database()
+
+    def gen_tools(self, chat_id:int, label:str) -> list:
+        @tool
+        def find_conspekts(text:str)->str:
+            """Query the database to find matching conspekts,
+            
+            Args:
+                text: the text to which it'll find the most similiar conspekts from the database"""
+            datas = self.database.get(text=text, chat_id=chat_id, label=label)
+            serialized = "\n\n".join(
+                (f"Path: {data.path}\nContent: {data.text}") for data in datas
+            )
+            print(serialized)
+            return serialized
+        return [find_conspekts]
+
+    async def query(self, text:str, chat_id:int, label:str=None):
+        tools = self.gen_tools(chat_id, label)
+        self.agent = create_agent(
                 model=self.model,
-                system_prompt=prompt,
+                system_prompt=self.prompt,
+                tools=tools,
                 response_format=ToolStrategy(ResponseFormat),
             )
-        self.database = db.Database()
-    
-    async def query(self, text:str, chat_id:int, label:str=None):
-        #2 step RAG
-        #можно потом сделать более сложную архитектуру
-        datas = self.database.get(text=text, chat_id=chat_id, label=label)
-        serialized = "\n\n".join(
-            (f"Path: {data.path}\nContent: {data.text}") for data in datas
-        )
-        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text + "\n\n" + serialized}]})
-        print(text + "\n\n" + serialized)
+        response = await self.agent.ainvoke({"messages": [{"role": "user", "content": text}]})
         return response['structured_response']

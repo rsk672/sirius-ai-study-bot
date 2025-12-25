@@ -9,6 +9,8 @@ from langchain.tools import tool, ToolRuntime
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.structured_output import ToolStrategy, ProviderStrategy
 from langgraph.checkpoint.memory import InMemorySaver
+from proxy_getter.find_proxies import ProxyGetter
+import httpx
 @dataclass
 class ResponseFormat:
     """Response schema for the agent."""
@@ -19,12 +21,14 @@ class RAG:
     def __init__(self):
         load_dotenv()
         API_KEY = os.getenv("LLM_KEY")
+        pg = ProxyGetter()
         self.model = ChatOpenAI(
             model="nex-agi/deepseek-v3.1-nex-n1:free",  # OpenRouter model ID #"nex-agi/deepseek-v3.1-nex-n1:free" "mistralai/devstral-2512:free"
             openai_api_base="https://openrouter.ai/api/v1",  # OpenRouter endpoint
             temperature=0.3,
             max_tokens=512,
-            api_key=API_KEY
+            api_key=API_KEY,
+            client = httpx.Client(proxy=pg.get())
         )
         with open('rag/prompt.txt', 'r') as f:
             self.prompt = f.read()

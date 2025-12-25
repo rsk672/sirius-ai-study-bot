@@ -48,7 +48,7 @@ def hash(data:Data)->str:
 
 class Database:
     def __init__(self):
-        self.sqldb = sqlite3.connect("sql.db")
+        self.sqldb = sqlite3.connect("sql.db", check_same_thread=False)
         self.cur = self.sqldb.cursor()
         self.client = chromadb.PersistentClient()
         self.collection = self.client.get_or_create_collection(

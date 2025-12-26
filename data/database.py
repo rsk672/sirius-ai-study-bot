@@ -78,7 +78,7 @@ class Database:
         chromaquery = self.collection.query(query_texts=text, n_results=count, where={"path":{"$in":paths}})
         dataoutput = []
         for i in range(len(chromaquery["metadatas"][0])):
-            if(DEBUG):print(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'")
+            if(DEBUG):print(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]['path']}'")
             sqlquery = self.cur.execute(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'")
             sqlresult = sqlquery.fetchall()
             dataoutput.append(Data(chromaquery["documents"][0][i],
@@ -87,6 +87,12 @@ class Database:
                                        sqlresult[0][4]))
         return dataoutput
     
+    def isempty(self, chat_id:int) -> bool:
+        if(DEBUG): print() 
+        query = self.cur.execute(f"SELECT COUNT() FROM database WHERE chat_id={chat_id}").fetchone()[0]
+        return query == 0
+
+
     def remove(self, message_id:int, chat_id:int):
         if(DEBUG): print(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
         query = self.cur.execute(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")

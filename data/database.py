@@ -167,16 +167,39 @@ class Database:
 
         if not paths:
             return []
+        chromaquery = self.collection.query(query_texts=text, n_results=count, where={"path":{"$in":paths}})
+        dataoutput = []
+        for i in range(len(chromaquery["metadatas"][0])):
+            if(DEBUG):print(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]['path']}'")
+            sqlquery = self.cur.execute(f"SELECT * FROM database WHERE path='{chromaquery["metadatas"][0][i]["path"]}'")
+            sqlresult = sqlquery.fetchall()
+            dataoutput.append(Data(chromaquery["documents"][0][i],
+                                   sqlresult[0][0], sqlresult[0][1],
+                                     sqlresult[0][2], sqlresult[0][3],
+                                       sqlresult[0][4]))
+        return dataoutput
+    
+    
+    def isempty(self, chat_id:int) -> bool:
+        if(DEBUG): print() 
+        query = self.cur.execute(f"SELECT COUNT() FROM database WHERE chat_id={chat_id}").fetchone()[0]
+        return query == 0
+    
+    def isempty(self, chat_id:int) -> bool:
+        if(DEBUG): print() 
+        query = self.cur.execute(f"SELECT COUNT() FROM database WHERE chat_id={chat_id}").fetchone()[0]
+        return query == 0
 
-        chromaquery = self.collection.query(
-            query_texts=text,
-            n_results=count,
-            where={"path": {"$in": paths}},
-        )
 
-        docs = chromaquery.get("documents", [[]])[0]
-        metas = chromaquery.get("metadatas", [[]])[0]
-        if not docs or not metas:
+    def remove(self, message_id:int, chat_id:int):
+        if(DEBUG): print(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
+        query = self.cur.execute(f"SELECT path FROM database WHERE chat_id={chat_id} AND message_id={message_id}")
+        result = query.fetchall()
+        paths = []
+        for i in result:
+            paths.append(str(i[0]))
+        if(DEBUG):print(paths)
+        if(len(paths)==0):
             return []
 
         out: List[Data] = []

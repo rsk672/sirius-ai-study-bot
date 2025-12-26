@@ -17,7 +17,7 @@ class Name:
         self.d[x] = y
         
     def __contains__(self, x):
-        return x in d
+        return x in self.d
     
     def __delitem__(self, x):
         del self.d[x]
